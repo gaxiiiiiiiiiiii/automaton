@@ -15,7 +15,7 @@ Definition infinitely_often_appear {A} (s : Stream A) (a : A) :=
   infinitely_often (fun s' => hd s' = a) s.
 
 Definition infinitely_often_appear' {A} ( s : Stream A) (a : A) :=
-  forall n, exists m,  Str_nth m (Str_nth_tl n s) = a.
+  forall n, exists m,  hd (Str_nth_tl m (Str_nth_tl n s)) = a.
 
 Axiom infinite_often_appear_iff : forall {A} (s : Stream A) (a : A),
   infinitely_often_appear' s a <-> infinitely_often_appear s a.
@@ -33,7 +33,9 @@ Inductive run {Σ} (N : buchi Σ) : Stream Σ -> Stream (state N) -> Prop :=
   | run_intro w r : hd r ∈ init N -> prerun w r -> run  w r.
 
 Definition langOf {Σ} (N : buchi Σ) (w : Stream Σ) : Prop :=
-  exists r, run w r /\ exists a, a ∈ (accepts N) /\ infinitely_often_appear r a.
+  exists r, run w r /\ infinitely_often (fun s => hd s ∈ accepts N) r.
+
+
 
 
 Definition is_inl {A B} (a : A + B) : Prop :=
@@ -486,6 +488,48 @@ Proof.
   }
 Qed.
 
+Lemma buchi_inter_switch_once {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))) :
+  prerun w r -> snd (hd r) = true ->
+  (exists a, a ∈ accepts (buchi_inter N1 N2) /\ infinitely_often_appear' r a) ->
+  exists n, fst (fst (hd (Str_nth_tl n r))) ∈ accepts N1.
+Proof.
+  move => Hp H [a [Ha Hi]].
+  destruct a as [[a1 a2] b].
+  rewrite in_set in Ha; simpl in Ha.
+  move /andP : Ha => [/setXP [_ H2] /set1P Hb]; subst.
+  destruct r as [[[s1 s2] b] r]; simpl in *; subst.  
+  inversion_clear Hp.
+  rewrite in_set in H; simpl in *.
+  move /andP : H => [_ Hb].
+  move : (Hi 1) => [m Hm]; simpl in *.
+  clear Hi.
+  move : s1 s2 w r H0 Hb Hm.
+  induction m => s1 s2 w r H0 Hb Hm.
+  {
+    simpl in *.
+    remember (s1 ∈ accepts N1) as b  eqn : Ha1.
+    destruct b; move /eqP : Hb => Hb.
+    - exists 0; simpl; auto.
+    - rewrite Hm in Hb; inversion Hb.
+  }
+  {
+    remember (s1 ∈ accepts N1) as b  eqn : Ha1.
+    destruct b; move /eqP : Hb => Hb.
+    - exists 0; simpl; auto.
+    - inversion_clear H0.
+      destruct r as [[[s1' s2'] b] r]; simpl in *; subst.
+      rewrite in_set in H.
+      move /andP : H => [_ H3].
+      move : (IHm s1' s2' _ _ H1 H3 Hm) => [n Hn].
+      exists (S n); simpl; auto.
+  }
+Qed.  
+
+
+
+  
+
+
 
   
 Lemma buchi_inter_f2t {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))):
@@ -567,16 +611,16 @@ Proof.
     }
   }
   {
-    apply infinite_often_appear_iff in Hi.
-    move : (Hi 0) => /= [m Hm].
-    rewrite in_set in Ha.    
-    destruct a as [[a1 a2] b]; simpl in *.
-    move /andP : Ha => [/setXP [_ Ha] /set1P E]; subst.
+    (* langOf の定義を変えた方が良いかも *)
+    assert (exists a, a ∈ accepts (buchi_inter N1 N2) /\ infinitely_often_appear' r a). {
+      exists a; split; auto.
+      apply infinite_often_appear_iff; auto .
+    }
     inversion_clear Hr.
-    rewrite in_set in H.
-    unfold Str_nth in Hm.
-    move /andP : H => [_ /eqP] => E.    
-    destruct m; destruct r as [[[s1 s2] b] r]; simpl in *; subst.
+    rewrite in_set in H0.
+    move /andP : H0 => [_ /eqP Hb].
+    move : (buchi_inter_switch_once H1 Hb H) => [n Hn].
+
     { inversion Hm. }
     inversion_clear H0; simpl in *.
     rewrite in_set in H; simpl in *.
