@@ -488,41 +488,6 @@ Qed.
 
 
   
-CoInductive switch1 {Σ} (N1 N2 : buchi Σ) : Stream (state (buchi_inter N1 N2)) -> Prop :=
-  | switch1_here r : fst (fst (hd r)) ∈ accepts N1 -> switch2 (tl r) -> switch1 r
-  | switch1_later r : snd (hd r)  = true -> switch1 (tl r) -> switch1 r
-  
-with switch2 {Σ} (N1 N2 : buchi Σ) : Stream (state (buchi_inter N1 N2)) -> Prop :=
-  | switch2_here r : snd (fst (hd r)) ∈ accepts N2 -> switch1 (tl r) -> switch2 r
-  | switch2_later r : snd (hd r)  = false -> switch2 (tl r) -> switch2 r.
-
-(* Inductive switch1 {Σ} (N1 N2 : buchi Σ) : state (buchi_inter N1 N2) -> Stream (state (buchi_inter N1 N2)) -> Prop :=
-  | switch1_here a r : fst (fst a) ∈ accepts N1 -> switch1 a (Cons a r)
-  | switch1_later a r : snd (hd r)  = true -> switch1 a (tl r) -> switch1 a r.
-  
-Inductive switch2 {Σ} (N1 N2 : buchi Σ) : state (buchi_inter N1 N2) -> Stream (state (buchi_inter N1 N2)) -> Prop :=
-  | switch2_here a r : snd (fst a) ∈ accepts N2 -> switch2 a (Cons a r)
-  | switch2_later a r : snd (hd r)  = false -> switch2 a (tl r) -> switch2 a r. *)
-
-Lemma buchi_inter_t2f {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))):
-  prerun w r -> snd (hd r) = true -> 
-  Exists (fun s => snd (hd s) = false /\ snd (fst (hd s)) ∈ accepts N2) r  ->  
-  Exists (fun s => snd (hd s) = true /\ fst (fst (hd s)) ∈ accepts N1) r.
-Proof.
-  move => Hp Ht He.
-  move : w Hp.
-  induction He => w Hp.
-  { move : H => [F _]; rewrite Ht in F; inversion F. }
-  destruct x as [[[s1 s2] b] r]; simpl in *; subst .
-  inversion_clear Hp; simpl in*.
-  rewrite in_set in H.
-  move /andP : H => [_ H3].
-  remember (s1 ∈ accepts N1); destruct b; move /eqP : H3 => H3.
-  - constructor; simpl; split; auto.
-  - constructor 2; simpl.
-    eapply IHHe; eauto.
-Qed.  
-
 Lemma buchi_inter_f2t {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))):
   prerun w r -> snd (hd r) = false ->
   Exists (fun s => snd (hd s) = true /\ fst (fst (hd s)) ∈ accepts N1) r  ->
