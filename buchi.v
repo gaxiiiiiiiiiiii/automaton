@@ -156,225 +156,255 @@ CoFixpoint prod_Stream_right {A B} (s : Stream (A * B)) : Stream B :=
 Lemma buchi_union_spec {Σ} (N1 N2 : buchi Σ) :
   langOf (union N1 N2) =  Union (langOf N1) (langOf N2).
 Proof.
-  apply Extensionality_Ensembles; split => w; unfold langOf, In; simpl.
-  { move => [r [H1 H2]].
-    move : (run_union_ForAll H1) => H0.
-    move : H2 => [a [Ha Hi]].
-    rewrite in_set in Ha.
-    destruct a; [left|right]; unfold In.
-    { case : H0 => H0.
-      { exists (sum_Stream_left H0); split.
-        --  inversion_clear H1.
-            constructor.
-            **  simpl.
-                destruct r. destruct H0. destruct s0.
-                ++  destruct i.
-                    rewrite in_set in H; auto.
-                ++  destruct i.
-            **  clear Hi H.
-                move : w r H0 H2.
-                cofix f.
-                move => w r H Hp.
-                clear s Ha.
-                destruct r; simpl in *.
-                inversion_clear H; simpl in *.
-                constructor.
-                ++  inversion_clear Hp; simpl in H2.
-                    simpl.
-                    destruct H; simpl. destruct r; simpl. destruct H; simpl.
-                    destruct s0 => /=. destruct i0 => /=.
-                    destruct s => /=. destruct i => /=.
-                    simpl in H2.
-                    rewrite in_set in H2.
-                    move /existsP : H2 => [s' /andP [Ht /eqP Hs]].
-                    inversion Hs; subst; auto.
-                    destruct i.
-                    destruct i0.
-                ++  rewrite tl_sum_Stream_left.
-                    destruct H.
-                    apply f; auto.
-                    inversion_clear Hp; auto.
-        --  exists s; split; auto.
-            clear H1 Ha.
-            move : r H0 Hi.
-            cofix f.
-            move => r H Hi.
-            inversion_clear Hi.
-            constructor.
-            {
-              clear H1 f.
-              induction H0.
-              - constructor 1; simpl.
-                destruct x; simpl. destruct H; simpl. destruct s0; simpl.
-                * destruct i; simpl in *. inversion H0; subst; auto.
-                * destruct i.
-              - constructor 2.
-                rewrite tl_sum_Stream_left.
-                destruct H.
-                apply IHExists.
-            }
-            {
-              rewrite tl_sum_Stream_left.
-              destruct H.
-              apply f; auto .
-            }
-      }
-      {
-        apply False_rect.
-        inversion_clear Hi.
-        clear H2 Ha H1 w.
-        induction H.
-        - destruct x; simpl in *; subst.
-          inversion H0; simpl in *; auto.
-        - inversion H0; auto.
-      }
-    }
-    {
-      case : H0 => H0; first last.
-      { exists (sum_Stream_right H0); split.
-        --  inversion_clear H1.
-            constructor.
-            **  simpl.
-                destruct r. destruct H0. destruct s0.
-                ++  destruct i.
-                ++  destruct i.
-                    rewrite in_set in H; simpl in *; auto.
-            **  clear Hi H.
-                move : w r H0 H2.
-                cofix f.
-                move => w r H Hp.
-                clear s Ha.
-                destruct r; simpl in *.
-                inversion_clear H; simpl in *.
-                constructor.
-                ++  inversion_clear Hp; simpl in H2.
-                    simpl.
-                    destruct H; simpl. destruct r; simpl. destruct H; simpl.
-                    destruct s0 => /=. destruct i0 => /=.
+  apply Extensionality_Ensembles; split => w; unfold langOf, In.
+  { move => [r [Hr Hi]].
+    move : (run_union_ForAll Hr) => H0.
+    (* move : H2 => [a [Ha Hi]]. *)
+    (* rewrite in_set in Ha. *)
+    inversion_clear Hr as [w_ r_ Hini Hp].
+    case : H0 => Hall; [left|right]; unfold In.
 
-                    destruct i0.
-                    destruct s => /=. destruct i => /=. destruct i.
-                    simpl in H2.
-                    rewrite in_set in H2.
-                    move /existsP : H2 => [s' /andP [Ht /eqP Hs]].
-                    inversion Hs; subst; auto.
-                ++  rewrite tl_sum_Stream_right.
-                    destruct H.
-                    apply f; auto.
-                    inversion_clear Hp; auto.
-        --  exists s; split; auto.
-            clear H1 Ha.
-            move : r H0 Hi.
-            cofix f.
-            move => r H Hi.
-            inversion_clear Hi.
-            constructor.
-            {
-              clear H1 f.
-              induction H0.
-              - constructor 1; simpl.
-                destruct x; simpl. destruct H; simpl. destruct s0; simpl.
-                * destruct i; simpl in *.
-                * destruct i. inversion H0; subst; auto.
-              - constructor 2.
-                rewrite tl_sum_Stream_right.
-                destruct H.
-                apply IHExists.
-            }
-            {
-              rewrite tl_sum_Stream_right.
-              destruct H.
-              apply f; auto .
-            }
+    { (*left*)
+      exists (sum_Stream_left Hall); split.
+      { (* run *)
+        constructor.
+        { (* init *)
+          rewrite in_set in Hini.
+          inversion_clear Hall as [H _].
+          simpl.
+          destruct r, Hall, s, i; simpl in *; auto.           
+        } 
+        { (* prerun *)
+          clear Hi Hini.
+          move : w r Hp Hall.
+          cofix f => w r Hp Hall.
+          constructor.
+          { (* trans *)
+            simpl.
+            destruct r,Hall,r,Hall,s0,i0,s,i; simpl.
+            inversion_clear Hp; simpl in *.
+            rewrite in_set in H.
+            move /existsP : H => [x /andP [Ht /eqP Hs]].
+            inversion Hs; subst; auto.
+          }
+          {(* coinduction *)
+            rewrite tl_sum_Stream_left.
+            destruct Hall.
+            inversion_clear Hp.
+            apply f; auto.
+          }
+        }
       }
-      {
-        apply False_rect.
-        inversion_clear Hi.
-        clear H2 Ha H1 w.
-        induction H.
-        - destruct x; simpl in *; subst.
-          inversion H0; simpl in *; auto.
-        - inversion H0; auto.
+      { (* infinitely_often *)
+        clear Hini Hp w.
+        move : r Hi Hall.
+        cofix f => r Hi Hall.
+        constructor.
+        {(* Exits *)
+          inversion_clear Hi as [He _].
+          clear f.
+          move : Hall.
+          induction He => Hall.
+          { (* base *)
+            constructor.
+            destruct Hall,x,s,i; simpl in *.
+            rewrite in_set in H; auto.
+          }
+          { (* inductive *)
+            inversion_clear Hall.
+            constructor 2.
+            rewrite tl_sum_Stream_left.
+            destruct Hall.
+            eapply IHHe.
+          }
+        }
+        { (*coinduction*)
+          rewrite tl_sum_Stream_left.
+          destruct Hall.
+          inversion_clear Hi.
+          eapply f; auto.
+        }
       }
     }
+    { (*right*)
+      exists (sum_Stream_right Hall); split.
+      { (* run *)
+        constructor.
+        { (* init *)
+          rewrite in_set in Hini.
+          inversion_clear Hall as [H _].
+          simpl.
+          destruct r, Hall, s, i; simpl in *; auto.           
+        } 
+        { (* prerun *)
+          clear Hi Hini.
+          move : w r Hp Hall.
+          cofix f => w r Hp Hall.
+          constructor.
+          { (* trans *)
+            simpl.
+            destruct r,Hall,r,Hall,s0,i0,s,i; simpl.
+            inversion_clear Hp; simpl in *.
+            rewrite in_set in H.
+            move /existsP : H => [x /andP [Ht /eqP Hs]].
+            inversion Hs; subst; auto.
+          }
+          {(* coinduction *)
+            rewrite tl_sum_Stream_right.
+            destruct Hall.
+            inversion_clear Hp.
+            apply f; auto.
+          }
+        }
+      }
+      { (* infinitely_often *)
+        clear Hini Hp w.
+        move : r Hi Hall.
+        cofix f => r Hi Hall.
+        constructor.
+        {(* Exits *)
+          inversion_clear Hi as [He _].
+          clear f.
+          move : Hall.
+          induction He => Hall.
+          { (* base *)
+            constructor.
+            destruct Hall,x,s,i; simpl in *.
+            rewrite in_set in H; auto.
+          }
+          { (* inductive *)
+            inversion_clear Hall.
+            constructor 2.
+            rewrite tl_sum_Stream_right.
+            destruct Hall.
+            eapply IHHe.
+          }
+        }
+        { (*coinduction*)
+          rewrite tl_sum_Stream_right.
+          destruct Hall.
+          inversion_clear Hi.
+          eapply f; auto.
+        }
+      }
+    }    
   }
   {
-    inversion_clear 1; move : H0 => [r [Hr [a [Ha Hi]]]].
-    {
-     exists (extend_sum_Stream_left r); split.
-     {
-      inversion_clear Hr.
-      constructor; simpl.
-      - destruct r.
-        rewrite in_set; auto.
-      - clear H Ha a Hi.
-        move : w r H0.
-        cofix f => w r H.
-        destruct r.
-        inversion_clear H; simpl in *.
+    inversion_clear 1; move : H0 => [r [Hr Hi]].
+    { (*left*)
+      exists (extend_sum_Stream_left r); split.
+      { (*run*)
         constructor; simpl.
-        - destruct r; simpl in *.
-          rewrite in_set.
-          apply /existsP; exists s0; apply /andP; split; auto.
-        - apply f; auto.
-     }
-     {
-      exists (inl a).
-      rewrite in_set; split; auto.
-      clear Ha Hr w.
-      move : r Hi.
-      cofix f => r Hi.
-      inversion_clear Hi.
-      constructor.
-      - clear H0 f.
-        induction H.
-        * constructor 1; simpl.
-          destruct x; simpl in *; subst; auto.
-        * constructor 2.
-          destruct x; simpl in *; auto.
-      - destruct r; simpl in *.
-        inversion H0.
-        apply f; constructor; auto.
-     }
+        { (*init*)
+          inversion_clear Hr as [w0 r0  H0 _].
+          destruct r.
+          rewrite in_set; auto.          
+        }
+        { (*prerun*)
+          clear Hi.
+          inversion_clear Hr as [w0 r0 _ Hp].
+          move : w r Hp.
+          cofix f => w r Hp.
+          constructor.
+          { (*trans*)
+            simpl. destruct r,r; simpl in *.
+            inversion_clear Hp; simpl in *.
+            rewrite in_set.
+            apply /existsP; exists s0; apply /andP; split; auto.
+          }
+          { (*coinductife*)
+            inversion_clear Hp; simpl.
+            destruct r.
+            simpl in H0.
+            eapply f; eauto.
+          }
+        }
+      }
+      { (*infinitely_often*)
+        clear Hr w.
+        move : r Hi.
+        cofix f => r Hi.
+        constructor.
+        { (*Existst*)
+          inversion_clear Hi as [He _].
+          clear f.
+          induction He.
+          { (*base*)
+            constructor; simpl.
+            destruct x.
+            rewrite in_set; auto.
+          }
+          { (*inductive*)
+            constructor 2.
+            destruct x; simpl in *; eauto.
+          }
+        }
+        { (*coinduction*)
+          inversion_clear Hi.
+          destruct r; simpl in *.
+          eapply f; eauto.
+        }
+      }
     }
-    {
-     exists (extend_sum_Stream_right r); split.
-     {
-      inversion_clear Hr.
-      constructor; simpl.
-      - destruct r.
-        rewrite in_set; auto.
-      - clear H Ha a Hi.
-        move : w r H0.
-        cofix f => w r H.
-        destruct r.
-        inversion_clear H; simpl in *.
+    { (*right*)
+       exists (extend_sum_Stream_right r); split.
+      { (*run*)
         constructor; simpl.
-        - destruct r; simpl in *.
-          rewrite in_set.
-          apply /existsP; exists s0; apply /andP; split; auto.
-        - apply f; auto.
-     }
-     {
-      exists (inr a).
-      rewrite in_set; split; auto.
-      clear Ha Hr w.
-      move : r Hi.
-      cofix f => r Hi.
-      inversion_clear Hi.
-      constructor.
-      - clear H0 f.
-        induction H.
-        * constructor 1; simpl.
-          destruct x; simpl in *; subst; auto.
-        * constructor 2.
-          destruct x; simpl in *; auto.
-      - destruct r; simpl in *.
-        inversion H0.
-        apply f; constructor; auto.
-     }
+        { (*init*)
+          inversion_clear Hr as [w0 r0  H0 _].
+          destruct r.
+          rewrite in_set; auto.          
+        }
+        { (*prerun*)
+          clear Hi.
+          inversion_clear Hr as [w0 r0 _ Hp].
+          move : w r Hp.
+          cofix f => w r Hp.
+          constructor.
+          { (*trans*)
+            simpl. destruct r,r; simpl in *.
+            inversion_clear Hp; simpl in *.
+            rewrite in_set.
+            apply /existsP; exists s0; apply /andP; split; auto.
+          }
+          { (*coinductife*)
+            inversion_clear Hp; simpl.
+            destruct r.
+            simpl in H0.
+            eapply f; eauto.
+          }
+        }
+      }
+      { (*infinitely_often*)
+        clear Hr w.
+        move : r Hi.
+        cofix f => r Hi.
+        constructor.
+        { (*Existst*)
+          inversion_clear Hi as [He _].
+          clear f.
+          induction He.
+          { (*base*)
+            constructor; simpl.
+            destruct x.
+            rewrite in_set; auto.
+          }
+          { (*inductive*)
+            constructor 2.
+            destruct x; simpl in *; eauto.
+          }
+        }
+        { (*coinduction*)
+          inversion_clear Hi.
+          destruct r; simpl in *.
+          eapply f; eauto.
+        }
+      }
+
+    
     }
-  }
+
+  }  
 Qed.
 
 (* ================== buchi inter  ================== *)
@@ -428,7 +458,7 @@ Definition buchi_inter {Σ} (N1 N2 : buchi Σ) := {|
 Lemma buchi_inter_spec_ll {Σ} (N1 N2 : buchi Σ) w :
   In (langOf (buchi_inter N1 N2)) w -> In (langOf N2) w.
 Proof.
-  move => [r [Hr [a [Ha Hi]]]].
+  move => [r [Hr Hi]].
   unfold In.
   exists (prod_Stream_right (prod_Stream_left r)); split.
   {
@@ -440,7 +470,7 @@ Proof.
       move /andP : H => [/andP [_ H'] _]; auto.
     }
     {
-      clear Ha Hi a.
+      clear Hi.
       destruct Hr as [w r _ Hp].
       move : w r Hp.
       cofix f => w r Hp.
@@ -462,33 +492,36 @@ Proof.
     }
   }
   {
-    destruct a as [[s1 s2] b].
-    rewrite in_set in Ha; simpl in Ha.
-    move /andP : Ha => [/setXP [H1  H2] /set1P Hb]; subst.
-    exists s2; split; auto.
-    clear H1 H2 w Hr.
-    move :r Hi.
-    cofix f => r Hi.
+    clear w Hr.
+    move : r Hi; cofix f => r Hi.
     constructor.
-    {
-      inversion_clear Hi as [He Hf].
-      clear Hf f.
+    { (*Exists*)
+      destruct Hi as [He _].
+      clear f.
       induction He.
-      - destruct x; simpl in *; subst.
-        constructor 1; simpl; auto.
-      - constructor 2.
-        destruct x, s, s ; simpl in *; auto.
+      { (*base*)
+        rewrite in_set in H.
+        destruct x as [[[s1 s2] b] r]; simpl in *.
+        move /andP : H => [/setXP [_ H2] /set1P E]; subst.
+        constructor; simpl; auto .
+      }
+      { (*inductive*)
+        constructor 2.
+        destruct x as [[[s1 s2] b] r]; simpl in *.
+        eauto.
+      }
     }
-    {
-      simpl.
-      destruct r, s, s; simpl.
-      inversion_clear Hi as [He Hf]; simpl in *.
+    { (*coinductive*)
+      inversion_clear Hi.
+      destruct r as [[[s1 s2] b] r]; simpl in *.
       eapply f; auto.
-    }
-  }
+    } 
+   }
 Qed.
 
-Lemma buchi_inter_switch_once {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))) :
+
+(*これが要らんならその方が良い*)
+(* Lemma buchi_inter_switch_once {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))) :
   prerun w r -> snd (hd r) = true ->
   (exists a, a ∈ accepts (buchi_inter N1 N2) /\ infinitely_often_appear' r a) ->
   exists n, fst (fst (hd (Str_nth_tl n r))) ∈ accepts N1.
@@ -523,7 +556,7 @@ Proof.
       move : (IHm s1' s2' _ _ H1 H3 Hm) => [n Hn].
       exists (S n); simpl; auto.
   }
-Qed.  
+Qed.   
 
 
 
@@ -549,13 +582,13 @@ Proof.
   - constructor; simpl; split; auto.
   - constructor 2; simpl.
     eapply IHHe; eauto.
-Qed.  
+Qed.  *)
   
   
 Lemma buchi_inter_spec_lr {Σ} (N1 N2 : buchi Σ) w :
   In (langOf (buchi_inter N1 N2)) w -> In (langOf N1) w.
 Proof.
-  move => [r [Hr [a [Ha Hi]]]].
+  move => [r [Hr Hi]].
   exists (prod_Stream_left (prod_Stream_left r)); split.
   {
     constructor.
@@ -566,7 +599,7 @@ Proof.
       move /andP : H => [/andP [H' _] _]; auto.
     }
     {
-      clear Ha Hi a.
+      clear Hi.
       destruct Hr as [w r Hi Hp].
       rewrite in_set in Hi.
       move /andP : Hi => [_ /eqP Hi].
@@ -611,30 +644,7 @@ Proof.
     }
   }
   {
-    (* langOf の定義を変えた方が良いかも *)
-    assert (exists a, a ∈ accepts (buchi_inter N1 N2) /\ infinitely_often_appear' r a). {
-      exists a; split; auto.
-      apply infinite_often_appear_iff; auto .
-    }
-    inversion_clear Hr.
-    rewrite in_set in H0.
-    move /andP : H0 => [_ /eqP Hb].
-    move : (buchi_inter_switch_once H1 Hb H) => [n Hn].
-
-    { inversion Hm. }
-    inversion_clear H0; simpl in *.
-    rewrite in_set in H; simpl in *.
-    move /andP : H => [_ Hb].
-    remember (s1 ∈ accepts N1); destruct b; move /eqP : Hb => Hb.
-    - exists s1; split; auto.
-      apply infinite_often_appear_iff => n.
-      move : (Hi n) => [k Hk].
-      exists
-    
    
-
-
-    
     
   }
 Admitted.  
