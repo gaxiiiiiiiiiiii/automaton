@@ -705,4 +705,28 @@ Proof.
       }
     }    
   }
-Admitted.  
+
+Admitted.
+
+
+
+CoFixpoint alternative_Stream 
+  (L R : Type) (Pl : Stream L -> Prop) (Pr : Stream R -> Prop)
+  (l : Stream L) (r : Stream R) 
+  (Hl : infinitely_often Pl l) (Hr : infinitely_often Pr r) (b : bool): Stream bool  :=
+  match Hl with
+  | HereAndFurther He Hl' =>
+    match He with
+    | Here _ => 
+      match Hr with
+      | HereAndFurther _ Hr' => Cons b (alternative_Stream Hr' Hl' (~~ b))
+      end   
+    | Further He' => 
+       match Hr with
+      | HereAndFurther _ Hr' => Cons b (alternative_Stream Hl' Hr' b)
+      end       
+    end 
+  end.
+  
+
+
