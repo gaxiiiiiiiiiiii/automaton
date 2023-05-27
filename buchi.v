@@ -11,18 +11,6 @@ Notation buchi := NFA.
 Definition infinitely_often {T : Type} (P : Stream T -> Prop) s : Prop :=
   ForAll (fun s' => Exists (fun s'' => P s'') s') s.
 
-Definition infinitely_often_appear {A} (s : Stream A) (a : A) :=
-  infinitely_often (fun s' => hd s' = a) s.
-
-Definition infinitely_often_appear' {A} ( s : Stream A) (a : A) :=
-  forall n, exists m,  hd (Str_nth_tl m (Str_nth_tl n s)) = a.
-
-Axiom infinite_often_appear_iff : forall {A} (s : Stream A) (a : A),
-  infinitely_often_appear' s a <-> infinitely_often_appear s a.
-
-
-
-
 
 CoInductive prerun {Σ} (N : buchi Σ) : Stream Σ ->  Stream (state N) -> Prop :=
   | step w r :
@@ -707,8 +695,6 @@ Proof.
   }
 
 Admitted.
-
-
 
 CoFixpoint alternative_Stream 
   (L R : Type) (Pl : Stream L -> Prop) (Pr : Stream R -> Prop)
