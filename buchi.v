@@ -159,8 +159,6 @@ Proof.
   apply Extensionality_Ensembles; split => w; unfold langOf, In.
   { move => [r [Hr Hi]].
     move : (run_union_ForAll Hr) => H0.
-    (* move : H2 => [a [Ha Hi]]. *)
-    (* rewrite in_set in Ha. *)
     inversion_clear Hr as [w_ r_ Hini Hp].
     case : H0 => Hall; [left|right]; unfold In.
 
@@ -520,71 +518,7 @@ Proof.
 Qed.
 
 
-(*これが要らんならその方が良い*)
-(* Lemma buchi_inter_switch_once {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))) :
-  prerun w r -> snd (hd r) = true ->
-  (exists a, a ∈ accepts (buchi_inter N1 N2) /\ infinitely_often_appear' r a) ->
-  exists n, fst (fst (hd (Str_nth_tl n r))) ∈ accepts N1.
-Proof.
-  move => Hp H [a [Ha Hi]].
-  destruct a as [[a1 a2] b].
-  rewrite in_set in Ha; simpl in Ha.
-  move /andP : Ha => [/setXP [_ H2] /set1P Hb]; subst.
-  destruct r as [[[s1 s2] b] r]; simpl in *; subst.  
-  inversion_clear Hp.
-  rewrite in_set in H; simpl in *.
-  move /andP : H => [_ Hb].
-  move : (Hi 1) => [m Hm]; simpl in *.
-  clear Hi.
-  move : s1 s2 w r H0 Hb Hm.
-  induction m => s1 s2 w r H0 Hb Hm.
-  {
-    simpl in *.
-    remember (s1 ∈ accepts N1) as b  eqn : Ha1.
-    destruct b; move /eqP : Hb => Hb.
-    - exists 0; simpl; auto.
-    - rewrite Hm in Hb; inversion Hb.
-  }
-  {
-    remember (s1 ∈ accepts N1) as b  eqn : Ha1.
-    destruct b; move /eqP : Hb => Hb.
-    - exists 0; simpl; auto.
-    - inversion_clear H0.
-      destruct r as [[[s1' s2'] b] r]; simpl in *; subst.
-      rewrite in_set in H.
-      move /andP : H => [_ H3].
-      move : (IHm s1' s2' _ _ H1 H3 Hm) => [n Hn].
-      exists (S n); simpl; auto.
-  }
-Qed.   
-
-
-
-  
-
-
-
-  
-Lemma buchi_inter_f2t {Σ} (N1 N2 : buchi Σ) w (r : Stream (state (buchi_inter N1 N2))):
-  prerun w r -> snd (hd r) = false ->
-  Exists (fun s => snd (hd s) = true /\ fst (fst (hd s)) ∈ accepts N1) r  ->
-  Exists (fun s => snd (hd s) = false /\ snd (fst (hd s)) ∈ accepts N2) r.
-Proof.
-  move => Hp Ht He.
-  move : w Hp.
-  induction He => w Hp.
-  { move : H => [F _]; rewrite Ht in F; inversion F. }
-  destruct x as [[[s1 s2] b] r]; simpl in *; subst .
-  inversion_clear Hp; simpl in*.
-  rewrite in_set in H.
-  move /andP : H => [_ H3].
-  remember (s2 ∈ accepts N2); destruct b; move /eqP : H3 => H3.
-  - constructor; simpl; split; auto.
-  - constructor 2; simpl.
-    eapply IHHe; eauto.
-Qed.  *)
-  
-  
+(* ガードネス条件は満たさないけど、おそらく進行性は満たすから、一旦Admitted *)
 Lemma buchi_inter_spec_lr {Σ} (N1 N2 : buchi Σ) w :
   In (langOf (buchi_inter N1 N2)) w -> In (langOf N1) w.
 Proof.
@@ -644,175 +578,131 @@ Proof.
     }
   }
   {
-   
-    
+    inversion_clear Hr.
+    rewrite in_set in H.
+    move /andP : H => [_ /eqP Hb].
+    move : Hi => [_ Hi].
+    move : w r H0 Hb Hi.
+    cofix f => w r Hp Hb Hi.
+    constructor.
+    {
+      clear f.      
+      destruct Hi as [He _].
+      destruct r as [[[s1 s2] b]]; simpl in *; subst.
+      move : s1 s2 w Hp.
+      induction He => s1 s2 w Hp.
+      {
+        destruct x as [[[s1' s2'] b'] r]; simpl in *.
+        rewrite in_set in H.
+        move /andP : H => /= [/setXP [_ Ha2]  /set1P E]; subst.
+        inversion_clear Hp; simpl in *.
+        rewrite in_set in H; simpl in *.
+        move /andP : H => [_ Hb']; auto.
+        remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : E => E.
+        - constructor; auto.
+        - inversion Hb'.
+      }
+      {        
+        inversion_clear Hp; simpl in *.
+        rewrite in_set in H; simpl in *.
+        move /andP : H => [_ Hb].
+        remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : Hb => Hb.
+        - constructor; auto .
+        - constructor 2; simpl.
+          clear E s1 s2.
+          destruct x as [[[s1 s2] b] r]; simpl in *; subst.
+          eapply IHHe; eauto.
+      } 
+    }
+    { 
+      destruct r as [[[s1 s2] b]]; simpl in *; subst.
+      inversion_clear Hp; simpl in *. rename H0 into Hp.
+      destruct Hi as [He Hi].
+
+      rewrite in_set in H.
+      move /andP : H => [_ Hb].
+      remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : Hb => Hb.
+      2:{eapply f; eauto. }
+      { 
+        clear E s1 s2.
+        rename f into g.
+        move : r w Hp Hb He Hi.
+        cofix f => r w Hp Hb He Hi.
+        constructor.
+        {
+         move : w Hp Hb Hi.
+         induction He => w Hp Hb Hi.
+         {
+          destruct x as [[[s1 s2] b] r]; simpl in *; subst.
+          rewrite in_set in H.
+          move /andP : H => /= [/setXP [_ Ha2]  _].
+          inversion_clear Hp; simpl in *.
+          rewrite in_set in H; simpl in *.
+          move /andP : H => [_ Hb]; auto.
+          rewrite Ha2 in Hb.
+          move /eqP : Hb => Hb.
+          constructor 2; simpl.
+          clear Ha2 s1 s2.
+          destruct Hi as [He _].
+          move : w H0 Hb.
+          induction He => w H0 Hb.
+          {
+            destruct x as [[[s1 s2] b] r]; simpl in *; subst.
+            rewrite in_set in H; simpl in *.
+            move /andP : H => /= [_  /set1P F]; inversion F.
+          }
+          {
+            destruct x as [[[s1 s2] b] r]; simpl in *; subst.
+            inversion_clear H0; simpl in *.
+            rewrite in_set in H; simpl in *.
+            move /andP : H => [_ Hb'].
+            remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : Hb' => Hb'.
+            - constructor; auto.
+            - constructor 2; eapply IHHe; eauto.
+          }          
+         }
+         {
+          destruct x as [[[s1 s2] b] r]; simpl in *; subst.
+          inversion_clear Hp; simpl in *.
+          inversion_clear Hi.
+          rewrite in_set in H.          
+          move /andP : H => [_ Hb].          
+          remember (s2 ∈ accepts N2) as b eqn:E; destruct b; move /eqP : Hb => Hb.
+          2:{ constructor 2. eapply IHHe; eauto. }
+          { 
+            constructor 2; simpl.
+            clear E s1 s2.
+            destruct r as [[[s1 s2] b] r]; simpl in *; subst.
+            inversion_clear H0; simpl in*.
+            rewrite in_set in H.
+            move /andP : H => [_ Hb].
+            remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : Hb => Hb.
+            - constructor; auto.
+            - constructor 2; simpl.
+              inversion H2.
+              eapply g; eauto.              
+              (* Fail Guarded. *)
+          }
+
+         } 
+        }
+        {
+          destruct r as [[[s1 s2] b] r]; simpl in *; subst.
+          inversion_clear Hp; simpl in *.
+          inversion_clear Hi.
+          rewrite in_set in H.
+          move /andP : H => [_ Hb].
+          remember (s2 ∈ accepts N2) as b eqn:E; destruct b; move /eqP : Hb => Hb.
+          2:{
+            eapply f; eauto.
+          }
+          {
+            clear f He H1 E s1 s2.
+            rename H2 into Hi.
+            eapply g; eauto.
+          }
+        }        
+      }
+    }    
   }
 Admitted.  
-
-
-Lemma buchi_inter_spec {Σ} (N1 N2 : buchi Σ) :
-  langOf (buchi_inter N1 N2) = Intersection (langOf N1) (langOf N2).
-Proof.
-  apply Extensionality_Ensembles; split => w; unfold langOf, In; simpl.
-  {
-   move => [r [Hr [a [Ha Hi]]]].
-   split; unfold In.
-   {
-    exists (prod_Stream_left (prod_Stream_left r)); split.
-    {
-     constructor.
-     {
-      inversion_clear Hr.
-      destruct r; simpl in *.
-      destruct p as [[s1' s2'] b].
-      rewrite in_set in H; simpl in H.
-      move /andP : H => [/andP [H' _] _]; auto.
-     }
-     {
-      clear Ha Hi a.
-      destruct Hr as [w r Hi Hp].
-      rewrite in_set in Hi.
-      move /andP : Hi => [_ Hi].
-      move : w r Hp Hi.
-      cofix f => w r Hp Hi.
-      constructor.
-      {
-        simpl.
-        destruct r, s, s, r, s2, s2; simpl.
-        inversion_clear Hp; simpl in *.
-        destruct s0; rewrite in_set in H;
-        simpl in H; move /andP : H => [Ht].
-        - remember (s2 ∈ accepts N1) as b; symmetry in Heqb.
-          destruct b; auto.
-        - remember (s4 ∈ accepts N2) as b; symmetry in Heqb.
-          destruct b; move /andP; case; auto.
-      }
-      {
-        simpl.
-        destruct r, s, s; simpl in *.
-        inversion_clear Hp.
-        simpl in H0.
-        (* apply f; auto. *)
-        simpl in *.
-        move /eqP : Hi => Hs0; subst s0.
-        rewrite in_set in H.
-        move /andP : H => [Ht Hi].
-        remember (fst (fst (hd r)) ∈ accepts N1).
-        destruct b; move /andP : Hi => [Hl Hr]; first last.
-        - eapply f; auto.
-        - admit.
-      }
-     }
-    }
-    {
-      inversion_clear Hr.
-      rewrite in_set in H.
-      move /andP : H => [/andP [H1 H2] /eqP Hb].
-      
-      assert (Exists (fun s : Stream (state N1 * state N2 * bool) =>
-        snd (hd s) = false /\ snd (fst (hd s)) ∈ accepts N2) r). {
-        inversion_clear Hi.
-        clear H1 H2 Hb H3 H0.
-        induction H.
-        - destruct x as [[[s1 s2] b] r].
-          destruct a as [[a1 a2] b0]; simpl in *.
-          inversion H; subst s1 s2 b0; clear H.
-          rewrite in_set in Ha; simpl in *.
-          move /andP : Ha => [/setXP [_ Ha] /set1P Hb]; subst b.
-          constructor; split; simpl; auto.
-        - constructor 2; auto.
-      }
-      move : (buchi_inter_switch_tf H0 Hb H); clear H => H.
-      (* move : (buchi_inter_switch H0 Hb H). *)
-      (* clear H => H. *)
-      clear H1 H2 Hi Ha.
-      assert (
-        infinitely_often (fun s => snd (hd s) = true /\ Exists (fun s' => snd (hd s') = false) s) r ).
-      {
-        move : r w H0 H Hb.
-        cofix f => r w H0 H Hb.
-        constructor.
-        - constructor; split; auto.
-        - inversion_clear H0.
-          inversion H.
-          * rewrite Hb in H0; inversion H0.
-          * eapply f; eauto.
-
-
-      }
-      (* infinite switch みたいな命題が欲しい *)
-    }
-   }
-   {
-    exists (prod_Stream_right (prod_Stream_left r)); split.
-      {
-      constructor.
-      {
-        inversion_clear Hr.
-        destruct r; simpl in *.
-        destruct p as [[s1' s2'] b].
-        rewrite in_set in H; simpl in H.
-        move /andP : H => [/andP [_ H'] _]; auto.
-      }
-      {
-        clear Ha Hi a.
-        destruct Hr as [w r _ Hp].
-        move : w r Hp.
-        cofix f => w r Hp.
-        constructor.
-        {
-          simpl.
-          destruct r, s, s, r, s2, s2; simpl.
-          inversion_clear Hp; simpl in *.
-          admit.
-        }
-        {
-          destruct r, s, s; simpl in *.
-          inversion_clear Hp.
-          simpl in H0.
-          apply f; auto.
-        }
-      }
-      }
-    {
-        destruct a as [[s1 s2] b].
-        rewrite in_set in Ha; simpl in Ha.
-        move /andP : Ha => [/setXP [H1  H2] /set1P Hb]; subst.
-        exists s2; split; auto.
-        clear H1 H2 Hr w.
-        move : r Hi.
-        cofix f => r Hi.
-        constructor.
-        {
-          inversion_clear Hi as [He Hf].
-          clear Hf.
-          induction He.
-          - destruct x; simpl in *; subst.
-            constructor 1; simpl; auto.
-          - constructor 2.
-            destruct x, p, p; simpl in *; auto.
-        }
-        {
-          destruct r; simpl.
-          destruct p,p.
-          inversion Hi.
-          apply f; auto.
-        }
-      }
-    }
-  }
-  {
-   move => [w0 [r1 [Hr1 [a1 [Ha1 Hp1]]]] [r2 [Hr2 [a2 [Ha2 Hp2]]]]] .
-
-
-  }
-
-
-
-
-
-
-
-
-
-
