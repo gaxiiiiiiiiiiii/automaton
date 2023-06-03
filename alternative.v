@@ -6,6 +6,16 @@ From mathcomp Require Import ssreflect.
 
 Notation "¬ P" := (fun s => ~ P s)(at level 10).
 
+
+(*
+substreamもuntilも自身を含まない（真部分集合の様な）実装となっている。
+何故なら、自身を含むとalternativeにおいてPとQをの両方を満たすストリームに対して、
+その子の要素がalternativeを満たす事を表現できないからである。つまり、
+until P r r -> alternative Q P r ->  alternative P Q r
+until P r r -> alternative P Q r ->  alternative Q P r
+が繰り返されて、これは意図する挙動ではない。
+*)
+
 Inductive substream {T : Type} : Stream T -> Stream T -> Prop :=
   | next r : substream r (tl r)
   | further r r' : substream (tl r) r' -> substream r r'.
