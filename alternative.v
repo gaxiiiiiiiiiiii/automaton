@@ -1,6 +1,7 @@
 Require Import Streams.
 
-From mathcomp Require Import ssreflect.
+From mathcomp Require Import ssreflect ssrbool.
+
 
 
 
@@ -79,7 +80,7 @@ Proof.
   eapply substream_infinitely_often with r'.
   - eapply until_substream; eauto.
   - eapply H; eauto.
-    Fail Guarded.
+    (* Fail Guarded. *)
 Abort.
 
 
@@ -92,7 +93,18 @@ Proof.
   eapply substream_infinitely_often with r'.
   - eapply until_substream; eauto.
   - eapply H; eauto.
+Restart.
+  inversion_clear 1.
+  induction H1.
+  - constructor.
+    * constructor; auto.
+    * eapply H; eauto.
+  - apply IHuntil in H2.
+    inversion H2.
+    constructor; auto.
+    constructor 2; auto.
 Qed.
+Print infinitely_switch1.     
 
 Lemma infinitely_switch2 {T} 
   (H : forall (P Q : Stream T -> Prop) (r : Stream T), alternative P Q r -> infinitely_often P r) 
@@ -105,39 +117,81 @@ Proof.
   - eapply H; eauto.
 Qed.
 
-Print infinitely_switch1.
-Print substream_infinitely_often.
 
-
-Fail CoFixpoint infinitely_switch {T} 
-  (P Q : Stream T -> Prop) (r : Stream T) (H : alternative P Q r) :infinitely_often P r :=
+(* it violates guaardness condition *)
+Fail CoFixpoint infinitely_switch {T} (P Q : Stream T -> Prop) (r : Stream T) (H : alternative P Q r) : infinitely_often P r := 
   infinitely_switch1 (infinitely_switch2 infinitely_switch) P Q r H.
 
 
-Lemma infinitely_switch {T} (P Q : Stream T -> Prop) (r : Stream T) :
-  alternative P Q r -> infinitely_often (fun s => P s \/ Q s) r.
-Proof.  
-  move : P Q r.
-  cofix f => P Q r H.
+
+
+(* CoFixpoint infinitely_switch1 {T} (P Q : Stream T -> Prop) (r : Stream T) 
+  (H : alternative P Q r) : infinitely_often P r :=
+  let alt _ r' (Hr : until P r r') (Hr' : alternative Q P r') := H in 
+  HereAndFurther (_ : Expsts P r) (
+    HereAndFurther (_ : Exists P (tl r)) (
+      ...
+      HereAndFurther (_ : Exists P r') (infinitely_switch2 Q P r' (Hr') : infinitely_often P r')
+    )
+  )
+  
+
+with infinitely_switch2 {T} (P Q : Stream T -> Prop) (r : Stream T) 
+  (H : alternative P Q r) : infinitely_often Q r :=
+  let alt _ r' (Hr : until P r r') (Hr' : alternative Q P r') := H in
+  HereAndFurther (_ : Exists Q r) (
+    HereAndFurther (_ : Exists Q (tl r)) (
+      ...
+      HereAndFurther (_ : Exists Q r') (infinitely_switch1 (Hr') : infinitely_often Q r')
+    )
+  ). *)
+
+(* Axiom P_dec : forall (P : Prop), {P} + {~ P}.
+Axiom decE : forall P, reflect P (P_dec P). *)
+
+CoInductive inf_until  {T : Type} (P : Stream T -> Prop) : Stream T -> Prop :=
+  | inf r r' : until P r r' -> inf_until P r' ->  inf_until P r.
+
+Inductive eventually {T : Type} (P : Stream T -> Prop) : Stream T -> Prop :=
+  | e_here s r : P (Cons s r)  -> eventually P (Cons s r)
+  | e_later s r : ~ P (Cons s r)  -> eventually P r -> eventually P (Cons s r).
+
+Definition eventually_inv {T : Type} (P : Stream T -> Prop) (r : Stream T) :
+  eventually P r  ->  ~ P r -> eventually P (tl r).
+Proof.
+  move => Hr F.
+  inversion Hr; subst; auto.
+  contradiction F.
+Defined.
+
+Lemma inf_often {T} (P : Stream T -> Prop) r (H : inf_until P r ) : infinitely_often P r.
+Proof.
+  move : r H.
+  cofix inf_often => r H.
+  inversion_clear H.
   constructor.
-  {
-    inversion_clear H.
-    clear f H1.
+  - clear inf_often H1.
     induction H0.
-    - constructor; left; auto.
-    - constructor 2; auto.    
-  }
-  {
-    inversion_clear H.
-    inversion_clear H1.
-    apply substream_infinitely_often with r'0.
-    - eapply substream_trans with r';
-      eapply until_substream; eauto.    
-
-
-  }
+    * constructor; auto.
+    * constructor 2; auto.
+  - eapply inf_often.
 Restart.
+  move : r H.
+  cofix inf_often => r H.
+  inversion_clear H.
+  induction H0.
+  - constructor.
+    * constructor; auto.
+    * eapply inf_often; eauto.
+  - constructor.
+    * clear inf_often IHuntil H1 H. 
+      constructor 2.
+      destruct r as [s r]; simpl in *; clear s.
+      induction H0.
+      + constructor; auto.
+      + constructor 2; auto.
+    * eapply IHuntil; auto.
+Abort.    
   
   
-Abort.
-
+ 
