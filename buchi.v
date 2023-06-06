@@ -1,5 +1,8 @@
 Require Export NFA.
 Require Import Streams.
+Require Import ProofIrrelevance.
+
+
 
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -571,10 +574,10 @@ Proof.
     move /andP : H => [_ /eqP Hb].
     move : Hi => [_ Hi].
     move : w r H0 Hb Hi.
-    cofix f => w r Hp Hb Hi.
+    cofix g => w r Hp Hb Hi.
     constructor.
     {
-      clear f.      
+      clear g.      
       destruct Hi as [He _].
       destruct r as [[[s1 s2] b]]; simpl in *; subst.
       move : s1 s2 w Hp.
@@ -610,10 +613,9 @@ Proof.
       rewrite in_set in H.
       move /andP : H => [_ Hb].
       remember (s1 ∈ accepts N1) as b eqn:E; destruct b; move /eqP : Hb => Hb.
-      2:{eapply f; eauto. }
+      2:{eapply g; eauto. }
       { 
         clear E s1 s2.
-        rename f into g.
         move : r w Hp Hb He Hi.
         cofix f => r w Hp Hb He Hi.
         constructor.
@@ -668,8 +670,7 @@ Proof.
             - constructor; auto.
             - constructor 2; simpl.
               inversion H2.
-              eapply g; eauto.              
-              (* Fail Guarded. *)
+              eapply g; eauto. (* Fail Guarded. *)
           }
 
          } 
@@ -680,39 +681,561 @@ Proof.
           inversion_clear Hi.
           rewrite in_set in H.
           move /andP : H => [_ Hb].
-          remember (s2 ∈ accepts N2) as b eqn:E; destruct b; move /eqP : Hb => Hb.
-          2:{
-            eapply f; eauto.
-          }
-          {
-            clear f He H1 E s1 s2.
-            rename H2 into Hi.
-            eapply g; eauto.
-          }
+          remember (s2 ∈ accepts N2) as b eqn:E; destruct b; move /eqP : Hb => Hb; first last.
+          - eapply f; eauto.
+          - eapply g; eauto. (* Fail Guarded *)          
         }        
       }
     }    
   }
 
+
 Admitted.
+
+Axiom P_dec : forall (P : Prop), {P} + {~ P}.
+Axiom decE : forall P, reflect P (P_dec P).
+
 
 CoFixpoint alternative_Stream 
   (L R : Type) (Pl : Stream L -> Prop) (Pr : Stream R -> Prop)
   (l : Stream L) (r : Stream R) 
   (Hl : infinitely_often Pl l) (Hr : infinitely_often Pr r) (b : bool): Stream bool  :=
-  match Hl with
-  | HereAndFurther He Hl' =>
-    match He with
-    | Here _ => 
-      match Hr with
-      | HereAndFurther _ Hr' => Cons b (alternative_Stream Hr' Hl' (~~ b))
-      end   
-    | Further He' => 
-       match Hr with
-      | HereAndFurther _ Hr' => Cons b (alternative_Stream Hl' Hr' b)
-      end       
-    end 
+  let: HereAndFurther He Hl' := Hl in
+  let: HereAndFurther _ Hr' := Hr in
+  match P_dec (Pl l) with
+  | left _ => Cons b (alternative_Stream Hr' Hl' (~~ b))
+  | right _ => Cons b (alternative_Stream Hl' Hr' b)
   end.
-  
 
 
+CoFixpoint prod_Stream {A B : Type} (l : Stream A) (r : Stream B) : Stream (A * B) :=
+  match l, r with
+  | Cons a l', Cons b r' => Cons (a, b) (prod_Stream l' r')
+  end.
+
+Lemma tl_prod_Stream {A B : Type} (l : Stream A) (r : Stream B) :
+  tl (prod_Stream l r) = prod_Stream (tl l) (tl r).
+Proof.
+  destruct l,r; simpl; auto.
+Qed.  
+
+Lemma buchi_inter_spec_r {Σ} (N1 N2 : buchi Σ) w :
+  In (langOf N1) w /\ In (langOf N2) w -> In (langOf (buchi_inter N1 N2)) w.
+Proof.
+  unfold langOf, In => [[[r1 [Hr1 Hi1]] [r2 [Hr2 Hi2]]]].
+  pose r := (prod_Stream (prod_Stream r1 r2) ((alternative_Stream Hi1 Hi2 true))).  
+  exists r; split.
+  {
+    constructor.
+    {
+      simpl.
+      destruct r1,r2,Hi1,Hi2.
+      simpl in *.
+      inversion_clear Hr1.
+      inversion_clear Hr2.
+      destruct (P_dec (s ∈ accepts N1));
+      rewrite in_set; simpl;
+      repeat (apply /andP; split => //). 
+    }
+    {                
+      unfold r; clear r.
+      inversion_clear Hr1 as [r0 w0 _ Hp1].
+      inversion_clear Hr2 as [r0 w0 _ Hp2].
+      move : w r1 r2 Hi1 Hi2 Hp1 Hp2.
+      cofix f => w r1 r2 Hi1 Hi2 Hp1 Hp2.
+      constructor.
+      {        
+        simpl in *.
+        destruct r1,r2,Hi1,Hi2,r1,r2,Hi1,Hi2; simpl in *.        
+        inversion_clear Hp1; simpl in *.
+        inversion_clear Hp2; simpl in *.
+        destruct (P_dec (s ∈ accepts N1)); simpl;
+        [ destruct (P_dec (s2 ∈ accepts N2)) 
+        | destruct (P_dec (s1 ∈ accepts N1))];
+        rewrite in_set; simpl;
+        apply /andP; split;
+        try match goal with
+        | [|- context [_ &&_ ]] => apply /andP; split; auto
+        end;
+        try rewrite i; auto;
+        apply Bool.not_true_is_false in n;
+        rewrite n; auto.
+      }
+      {        
+        repeat rewrite tl_prod_Stream.
+        rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+        destruct Hi1, Hi2; simpl.
+        destruct (P_dec (hd r1 ∈ accepts N1)); simpl; first last.
+        { 
+          inversion_clear Hp1; inversion_clear Hp2.
+          eapply f; eauto. 
+        }
+        {
+          destruct r1,r2; simpl.
+          inversion_clear Hp1; inversion_clear Hp2; simpl in *.
+          clear e e0 i H H1.
+          rename H0 into Hp1.
+          rename H2 into Hp2.
+          move : w r1 r2 Hi1 Hi2 Hp1 Hp2.          
+          cofix g => w r1 r2 Hi1 Hi2 Hp1 Hp2.
+          constructor.
+          {
+            simpl.
+            destruct r1,r2,Hi1,Hi2; simpl.
+            inversion_clear Hp1; inversion_clear Hp2; simpl in *.
+            destruct (P_dec (s2 ∈ accepts N2)); simpl;
+            destruct r1,r2, Hi1,Hi2; simpl;
+            inversion_clear H0; inversion_clear H2; simpl in *;
+            [ destruct (P_dec (s3 ∈ accepts N1))
+            | destruct (P_dec (s4 ∈ accepts N2))];
+            rewrite in_set; simpl; 
+            try rewrite i;
+            try (rewrite Bool.not_true_iff_false in n; rewrite n);
+            repeat (apply /andP; split => //).    
+          }
+          {
+            repeat rewrite tl_prod_Stream.
+            rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+            destruct Hi2, Hi1; simpl.
+            destruct (P_dec (hd r2 ∈ accepts N2)).
+            {
+              inversion_clear Hp1; inversion_clear Hp2.
+              eapply f; eauto.
+            }
+            {
+              inversion_clear Hp1; inversion_clear Hp2.
+              eapply g; auto.
+            }
+          }          
+        }
+      }
+    }
+  }
+  {
+    clear Hr1 Hr2.
+    unfold r in *; clear r.
+    rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+    destruct Hi1, Hi2; simpl in *.
+    clear e0.    
+    move : r2 Hi2.
+    induction e => r2 Hi2; simpl.
+    {
+      rename x into r1.
+      destruct (P_dec (hd r1 ∈ accepts N1)); first last. 
+      { destruct n; auto. }
+      clear w H i.            
+      constructor.
+      {
+        constructor 2.
+        repeat rewrite tl_prod_Stream; simpl.
+        rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+        destruct Hi2, Hi1; simpl.
+        clear e0.
+        move : r1 Hi1 Hi2.
+        induction e => r1 Hi1 Hi2.
+        {
+          constructor; simpl.
+          destruct r1,r1; simpl.
+          destruct x; simpl.
+          destruct (P_dec (s1 ∈ accepts N2));
+          rewrite in_set; simpl;
+          (apply /andP; split; [apply /setXP; split|]); auto.
+          apply /set1P; auto.
+        }
+        {          
+          destruct (P_dec (hd x ∈ accepts N2)); simpl; first last.
+          {
+            constructor 2.
+            repeat rewrite tl_prod_Stream.
+            rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+            destruct Hi2, Hi1; simpl.
+            eapply IHe.
+          }
+          {
+            constructor; simpl.
+            destruct r1,r1,x; simpl.
+            rewrite in_set.
+            apply /andP; split; simpl; auto.
+            - apply /setXP; split; auto.
+              apply /set1P; auto. 
+          }
+        }
+      }
+      {
+        repeat rewrite tl_prod_Stream. simpl.
+        destruct r1,r2; simpl in *.
+        clear s s0.        
+        move : r1 r2 Hi1 Hi2.
+        cofix g => r1 r2 Hi1 Hi2.
+        constructor.
+        {
+          clear g.
+          rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+          destruct Hi2, Hi1; simpl.
+          clear e0.
+          move : r1 Hi1.
+          induction e => r1 Hi1.
+          {
+            constructor; simpl.
+            destruct r1,x; simpl.
+            destruct (P_dec (s0 ∈ accepts N2)); simpl;
+            rewrite in_set;
+            (apply /andP; split; simpl;
+            [apply /setXP; split|apply /set1P]
+            ); auto.            
+          }
+          {
+            destruct (P_dec (hd x ∈ accepts N2)); simpl.
+            {
+              constructor; simpl.
+              destruct r1,x; simpl.
+              rewrite in_set.
+              apply /andP; split; simpl; auto.
+              - apply /setXP; split; auto.
+              - apply /set1P; auto. 
+            }
+            {
+              constructor 2.
+              repeat rewrite tl_prod_Stream.
+              rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+              destruct Hi2, Hi1; simpl.
+              eapply IHe.
+            }            
+          }
+        }
+        {
+          rewrite tl_prod_Stream.
+          rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+          destruct r1,r2,Hi1,Hi2; simpl.
+          destruct (P_dec (s0 ∈ accepts N2)); simpl; first last.
+          - eapply g.
+          - clear i e e0; simpl in *.
+            move : r1 r2 Hi1 Hi2.
+            cofix f => r1 r2 Hi1 Hi2.
+            constructor.
+            {
+              clear f g.
+              rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+              destruct Hi1, Hi2.
+              clear e0.
+              move : r2 Hi2.
+              induction e => r2 Hi2.
+              {
+                destruct (P_dec (hd x ∈ accepts N1)); first last.
+                { contradiction n. }
+                clear i H.
+                constructor 2.
+                repeat rewrite tl_prod_Stream; simpl.
+                destruct x,r2; simpl.
+                rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                destruct Hi2, Hi1; simpl.
+                clear e0.
+                rename x into r1.
+                move : r1 Hi1; simpl in *.
+                induction e => r1 Hi1.
+                {
+                  destruct (P_dec (hd x ∈ accepts N2)); first last.
+                  { contradiction n. }
+                  constructor; simpl.
+                  destruct x,r1; simpl.
+                  rewrite in_set.
+                  apply /andP; split; simpl; auto.
+                  - apply /setXP; split; auto.
+                  - apply /set1P; auto.
+                }
+                {
+                  destruct (P_dec (hd x ∈ accepts N2)); simpl.
+                  {
+                    constructor; simpl.
+                    destruct x,r1; simpl.
+                    rewrite in_set.
+                    apply /andP; split; simpl; auto.
+                    - apply /setXP; split; auto.
+                    - apply /set1P; auto.
+                  }
+                  {
+                    constructor 2.
+                    repeat rewrite tl_prod_Stream.
+                    rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                    destruct Hi2, Hi1; simpl.
+                    eapply IHe.
+                  }
+                }
+              }
+              {
+                constructor 2.
+                repeat rewrite tl_prod_Stream.
+                destruct (P_dec (hd x ∈ accepts N1)); simpl; first last.
+                { rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+                  destruct Hi2, Hi1; simpl.
+                  eapply IHe.
+                }
+                {
+                  clear IHe i.
+                  destruct x,r2; simpl in *.
+                  clear s s0.
+                  rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                  destruct Hi2, Hi1; simpl.
+                  clear e e1.
+                  rename x into r1.
+                  move : r1 Hi1.
+                  induction e0 => r1 Hi1.
+                  { 
+                    destruct (P_dec (hd x ∈ accepts N2)); first last.
+                    { contradiction n. }
+                    constructor; simpl.
+                    destruct r1,x; simpl.
+                    rewrite in_set.
+                    apply /andP; split; simpl; auto.
+                    - apply /setXP; split; auto.
+                    - apply /set1P; auto.
+                  }
+                  {
+                    destruct (P_dec (hd x ∈ accepts N2)).
+                    {
+                      constructor; simpl.
+                      destruct r1,x; simpl.
+                      rewrite in_set.
+                      apply /andP; split; simpl; auto.
+                      - apply /setXP; split; auto.
+                      - apply /set1P; auto.
+                    }
+                    {
+                      constructor 2.
+                      repeat rewrite tl_prod_Stream.
+                      rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                      destruct Hi2, Hi1; simpl.
+                      eapply IHe0.
+                    }
+                  }
+                }
+
+              }
+            }
+            {
+              repeat rewrite tl_prod_Stream.
+              rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+              destruct Hi1, Hi2; simpl.
+              destruct (P_dec (hd r1 ∈ accepts N1)); simpl.
+              - eapply g.
+              - eapply f.
+            }
+        }
+      }
+    }    
+    {      
+      destruct (P_dec (hd x ∈ accepts N1)); simpl; first last.
+      {
+        rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+        destruct Hi1, Hi2; simpl in *.
+        move : (IHe Hi1 _ Hi2); clear IHe => IH.
+        inversion_clear IH as [He Hi].
+        constructor.
+        - constructor 2.
+          repeat rewrite tl_prod_Stream.
+          auto.
+        - constructor.
+          * repeat rewrite tl_prod_Stream; simpl.
+            auto.
+          * rewrite tl_prod_Stream.
+            replace (tl (prod_Stream x r2)) 
+              with (prod_Stream (tl x) (tl r2)) 
+              by (rewrite tl_prod_Stream; auto).
+            auto.
+      }
+      {
+        clear IHe.
+        rename x into r1.
+        clear e i w.
+        destruct r1 as [s1 r1].
+        destruct r2 as [s2 r2].
+        simpl in *.
+        constructor.
+        {
+          inversion_clear Hi2 as [He _].
+          constructor 2.
+          repeat rewrite tl_prod_Stream.
+          simpl.
+          move : r1 Hi1 Hi2.
+          induction He => r1 Hi1 Hi2.
+          {
+            constructor; simpl.
+            destruct r1,x,Hi1,Hi2; simpl in *.
+            destruct (P_dec (s0 ∈ accepts N2)); simpl; first last.
+            { contradiction n. }
+            rewrite in_set.
+            apply /andP; split.
+            - apply /setXP; split; auto.
+            - apply /set1P; auto.          
+          }
+          {
+            rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+            destruct Hi1,Hi2.
+            destruct (P_dec (hd x ∈ accepts N2)).
+            - constructor; simpl.
+              destruct r1,x.
+              rewrite in_set; simpl.
+              apply /andP; split; simpl; auto.
+              - apply /setXP; split; auto.
+              - apply /set1P; auto.                  
+            - constructor 2.
+              repeat rewrite tl_prod_Stream; simpl.
+              eapply IHHe.
+          }
+        }
+        { 
+          repeat rewrite tl_prod_Stream; simpl.
+          move : r1 r2 Hi1 Hi2.
+          cofix f => r1 r2 Hi1 Hi2.
+          constructor.
+          {
+            clear f.
+            inversion_clear Hi2 as [He _].
+            move : r1 Hi1.
+            induction He => r1 Hi1.
+            {
+             constructor; simpl.
+             destruct r1,x,Hi1,Hi2; simpl.
+             destruct (P_dec (s0 ∈ accepts N2)); rewrite in_set;
+             apply /andP; simpl; split;
+             try solve [apply /set1P; auto].
+             apply /setXP; split; auto.
+            }            
+            {              
+              repeat rewrite tl_prod_Stream.
+              rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+              destruct Hi1,Hi2.
+              destruct (P_dec (hd x ∈ accepts N2)); simpl.
+              - constructor; simpl.
+                destruct r1,x.
+                rewrite in_set; simpl.
+                apply /andP; split; simpl; auto.
+                - apply /setXP; split; auto.
+                - apply /set1P; auto.
+              - constructor 2.
+                repeat rewrite tl_prod_Stream; simpl.
+                eapply IHHe. 
+            }
+          }
+          {
+            repeat rewrite tl_prod_Stream.
+            rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+            destruct Hi1,Hi2.
+            destruct (P_dec (hd r2 ∈ accepts N2)); simpl; first last.
+            * apply f.
+            * destruct r1,r2; simpl in *.
+              clear e e0 i s s0.
+              move : r1 r2 Hi1 Hi2.
+              cofix g => r1 r2 Hi1 Hi2.
+              constructor; first last.
+              - repeat rewrite tl_prod_Stream.
+                rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+                destruct Hi1,Hi2.
+                destruct (P_dec (hd r1 ∈ accepts N1)); simpl.
+                * apply f.
+                * eapply g.
+              - clear f g.
+                rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+                destruct Hi1,Hi2.
+                clear e0.
+                move : r2 Hi2.
+                induction e => r2 Hi2.
+                {
+                  destruct (P_dec (hd x ∈ accepts N1)); first last.
+                  { contradiction n. }
+                  constructor 2.
+                  repeat rewrite tl_prod_Stream; simpl.
+                  clear H i.
+                  rename x into r1.
+                  destruct r1,r2; simpl in *.
+                  rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                  destruct Hi1,Hi2.
+                  clear e s s0.
+                  move : r1 Hi1.
+                  induction e0 => r1 Hi1.
+                  - constructor; simpl.
+                    destruct r1,x; simpl.
+                    destruct (P_dec (s0 ∈ accepts N2)); 
+                    rewrite in_set; simpl;
+                    (apply /andP; split; [apply /setXP; split|]); auto.
+                    apply /set1P; auto.
+                  - destruct (P_dec (hd x ∈ accepts N2)); simpl.
+                    - constructor; simpl.
+                      destruct r1,x; simpl.
+                      rewrite in_set; simpl;
+                      (apply /andP; split; [apply /setXP; split|]); auto.
+                      apply /set1P; auto.
+                    - constructor 2.
+                      repeat rewrite tl_prod_Stream; simpl.
+                      rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                      destruct Hi1,Hi2.
+                      eapply IHe0.                                        
+                }
+                {
+                  destruct (P_dec (hd x ∈ accepts N1)); simpl; first last.
+                  {
+                    clear n.
+                    constructor 2.
+                    repeat rewrite tl_prod_Stream; simpl.
+                    rewrite (unfold_Stream (alternative_Stream Hi1 Hi2 true)); simpl.
+                    destruct Hi1,Hi2.
+                    eapply IHe.
+                  }
+                  {
+                    clear IHe i e.
+                    constructor 2.
+                    repeat rewrite tl_prod_Stream; simpl.
+                    rename x into r1.
+                    destruct r1,r2; simpl in *.
+                    rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                    destruct Hi1,Hi2.
+                    clear e s s0.
+                    move : r1 Hi1.
+                    induction e0 => r1 Hi1.
+                    {
+                      destruct (P_dec (hd x ∈ accepts N2)); first last.
+                      { contradiction n. }
+                      constructor; simpl.
+                      destruct r1,x.
+                      rewrite in_set; simpl.
+                      apply /andP; split; simpl; auto.
+                      - apply /setXP; split; auto.
+                      - apply /set1P; auto.
+                    }                    
+                    {
+                      destruct (P_dec (hd x ∈ accepts N2)).
+                      {
+                        constructor; simpl.
+                        destruct r1,x.
+                        rewrite in_set; simpl.
+                        apply /andP; split; simpl; auto.
+                        - apply /setXP; split; auto.
+                        - apply /set1P; auto.
+                      }
+                      {
+                        constructor 2.
+                        repeat rewrite tl_prod_Stream; simpl.
+                        rewrite (unfold_Stream (alternative_Stream Hi2 Hi1 false)); simpl.
+                        destruct Hi1,Hi2.
+                        eapply IHe0.
+                      }
+                    }
+                  }
+                } 
+          } 
+        }
+      }
+    }
+  }
+Qed.
+
+Lemma buchi_inter_spec {Σ} (N1 N2 : buchi Σ) :
+  langOf (buchi_inter N1 N2) = Intersection (langOf N1) (langOf N2).
+Proof.
+  apply Extensionality_Ensembles; split => w H.
+  - split.
+    * eapply buchi_inter_spec_lr; eauto.
+    * eapply buchi_inter_spec_ll; eauto.
+  - eapply buchi_inter_spec_r; auto.
+    inversion_clear H; split; auto.
+Qed.
