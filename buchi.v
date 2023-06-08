@@ -1,5 +1,5 @@
 Require Export NFA.
-Require Import Streams.
+Require Export Streams.
 Require Import ProofIrrelevance.
 
 
