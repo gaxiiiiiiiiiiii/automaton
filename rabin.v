@@ -1,179 +1,145 @@
-Require Export buchi.
-From mathcomp Require Export choice.
+From mathcomp Require Import fintype eqtype ssreflect ssrbool choice.
+
+Require Import NonEmptyFintype.
+Require Import NFA.
 
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-Set Implicit Arguments.
+
+
+Notation bin := bool.
+Notation L := true.
+Notation R := false.
+
+(* 教科書ではT := {1,0}^* としてるけど、ツリーのノードでは有限だから一応nilも含めている *)
+(* CoInductive node := 
+  | nil : node
+  | cons : bin -> node -> node. *)
+Notation node := (list bin).
+Notation λ := nil.
+(* Infix "::" := cons (at level 60, right associativity). *)
+Definition sucL (u : node)  := cons L u.
+Definition sucR (u : node)  := cons R u.
+
+(* 必要かわかんないけど、一応 *)
+(* Definition is_fin (u : node) : Prop := 
+  match u with
+  | nil => True
+  | cons _ u' => False
+  end.
+Definition is_inf (u : node) : Prop := ~ is_fin u.
+Definition inf_node := {u : node | is_inf u}.
+Definition fin_node := {u : node | is_fin u}. *)
+
+
+
+
+(* CoFixpoint app (u v : node) : node :=
+  match u with
+  | nil => v
+  | cons b u' => cons b (app u' v)
+  end. *)
+
+Inductive above : node -> node -> Prop :=
+  | above_refl u : above u u
+  | above_cons b u v : above u v -> above u (cons b v).
+
+(* Ensemble で良いのかは疑問が残る *)
+Definition aboveOf (x : node) : Ensemble node := fun y => above x y.
+
+
+(* おそらく無限の二分木だからCoInductiveだけど、ちょと自信がない。 *)
+CoInductive tree : node -> Type :=
+  | tree_intro u :  tree (cons L u) -> tree (cons R u) -> tree u.
+
+Fixpoint subs (u : node) : Ensemble node := fun v => 
+  match u with
+  | nil => u = v
+  | cons a u' => v = u \/ subs u' v
+  end.
+
+
+Definition path pi : Prop :=
+  exists u, pi = subs u.
+
+
+(* おそらく無限の二分木だからCoInductiveだけど、ちょと自信がない。 *)
+
+(* Definition path (pi : Ensemble node) : Prop := *)
+  (* In _ pi λ /\ (forall u, In _ pi u -> In _ pi (sucL u) \/ In _ pi (sucR u)). *)
+
+Lemma subs_above u v :
+  In (subs u) v -> above v u.
+Proof.
+  move : v.
+  induction u; rewrite /In => /= v H.
+  - subst.
+    constructor.
+  - case : H => H.
+    * subst.
+      constructor.
+    * constructor 2; auto.
+Qed.    
+
+
+Lemma above_nil u : above λ u.
+Proof.
+  induction u.
+  - by apply above_refl.
+  - by apply above_cons.
+Qed.
+
+Lemma above_trans u v w : above u v -> above v w -> above u w.
+Proof.
+  move => Huv Hvw.
+  move : u Huv.
+  induction Hvw => u0 H //=.
+  constructor 2.
+  apply IHHvw; auto.
+Qed.
+
+
+Lemma path_total :
+  forall pi x y, path pi -> In pi x -> In pi y -> above x y \/ above y x.
+Proof.  
+  move => pi x y [u] ->.
+  move : x y.
+  induction u => x y Hx Hy.
+  - simpl in *.
+    unfold In in *; subst.
+    left; constructor.
+  - unfold In in *.
+    simpl in *.
+    case : Hx => Hx;
+    case : Hy => Hy; subst.
+    * left; constructor.
+    * right.
+      constructor.      
+      apply subs_above; auto.
+    * left.
+      constructor.
+      apply subs_above; auto.
+    * apply IHu; auto.
+Qed.   
+
+Definition lang (Σ : nonEmptyFintype) : Type:= (node -> Σ) * node .
 
 Record rabin (Σ : nonEmptyFintype) := {
   stateR : nonEmptyFintype;
   initR : {SET stateR};
-  transR : stateR -> Σ -> {set stateR};
-  acceptsR : {set {set stateR} * {set stateR}}
-  (* acceptsInf : {set stateR}; *)
-  (* acceptsFin : {set stateR}; *)
+  transR : (stateR * Σ) -> {set (stateR * stateR)};
+    (* nonEmptyFinType_of (default stateR, default stateR); *)
+  accepts : {set stateR};
 }.
 
-Arguments stateR {_}.
-Arguments initR {_}.
-Arguments transR {_}.
-Arguments acceptsR {_}.
-(* Arguments acceptsFin {_}. *)
+(* Set Implicit Arguments of rabin fields *)
+Arguments stateR {Σ}.
+Arguments initR {Σ}.
+Arguments transR {Σ}.
+Arguments accepts {Σ}.
 
-CoInductive prerun {Σ} (N : rabin Σ) : Stream Σ ->  Stream (stateR N) -> Prop :=
-  | step w r :
-     hd (tl r) ∈ transR N (hd r) (hd w) -> prerun (tl w) (tl r) -> prerun w r.
+Definition runR {Σ}(N : rabin Σ) (l : lang Σ) (r : node -> stateR N):= 
+  (r λ) ∈ (initR N ) /\  (forall u, (r (sucL u), (r (sucR u))) ∈ transR N (r u, fst l u)).
 
-Inductive run {Σ} (N : rabin Σ) : Stream Σ -> Stream (stateR N) -> Prop :=
-  | run_intro w r : hd r ∈ initR N -> prerun w r -> run  w r.
-
-Definition langOf {Σ} (N : rabin Σ) (w : Stream Σ) : Prop :=
-  exists r,(run w r /\ 
-    exists p, (p ∈ acceptsR N /\ 
-      (infinitely_often (fun s => hd s ∈ fst p) r) /\
-      (~ infinitely_often (fun s => hd s ∈ snd p) r)
-    )   
-  ).
-
-
-
-
-(* Record id_prod (T : finType) := {
-  baseIP :>  prod_finType T T;
-  axiomIP : fst baseIP == snd baseIP;
-}.
-
-
-
-Canonical id_prod_sub T := Eval hnf in [subType for baseIP T].
-Definition id_prod_eqm T := Eval hnf in [eqMixin of id_prod T by <: ].
-Canonical id_prod_eq T := Eval hnf in EqType (id_prod T) (id_prod_eqm T).
-Definition id_prod_chm T := [choiceMixin of id_prod T by <: ].
-Canonical id_prod_ch T := Eval hnf in ChoiceType (id_prod T) (id_prod_chm T).
-Definition id_prod_cntm T := [countMixin of id_prod T by <: ].
-Canonical id_prod_cnt T := Eval hnf in CountType (id_prod T) (id_prod_cntm T).
-Canonical id_prod_scnt T := Eval hnf in [subCountType of id_prod T].
-Definition id_prod_finm T := [finMixin of id_prod T by <: ].
-Canonical id_prod_fin T := Eval hnf in FinType (id_prod T) (id_prod_finm T).
-Canonical id_prod_sfin T := Eval hnf in [subFinType of id_prod T].
-
-Arguments baseIP {_}.
-Arguments axiomIP {_}.
-
-*)
-
-(* Definition mk_id_prod {T : nonEmptyFintype} (t : T) : id_prod T.
-Proof.
-  eapply Build_id_prod with (baseIP := (t, t)).
-  auto.
-Defined.  *)
-
-Definition nonEmpty_prod (T : nonEmptyFintype) : nonEmptyFintype.
-Proof.
-  eapply nonEmptyFintype.Pack with (sort := prod_finType T T); split.  
-  - destruct (prod_finType T T) => //=.
-  - split.
-    exact (default T, default T).
-Defined. 
-
-(* Canonical nonEmpty_prod. *)
-
-Definition SET_nonEmpty_prod {T : nonEmptyFintype} (l r : {SET T}) : {SET nonEmpty_prod T}.
-Proof.
-  destruct l as [l Hl].
-  destruct r as [r Hr].
-  eapply nonEmptyFinset.Pack with (carrier := setX l r) => /=.
-  apply /setXP; split => //.  
-Defined.
-
-(* Definition nonEmpty_id_prod (T : nonEmptyFintype) : nonEmptyFintype.
-Proof.  
-  eapply nonEmptyFintype.Pack with (sort := id_prod_fin T); split.  
-  - destruct (id_prod_fin T) => //=.
-  - split.
-    apply (mk_id_prod (default T)).
-Defined.
-
-Definition mk_SET_nonEmpty_id_prod {T : nonEmptyFintype} (s : {SET T}) : {SET nonEmpty_id_prod T}.
-Proof.
-  eapply nonEmptyFinset.Pack with (carrier := [set :id_prod_fin T]).
-  simpl.
-  apply in_setT.
-Qed. *)
-
-(* Canonical nonEmpty_id_prod. *)
-
-
-
-
-
-
-Definition rabin2buchi {Σ} (N : rabin Σ) : buchi Σ := {|
-    state := nonEmpty_prod (stateR N);
-    init := SET_nonEmpty_prod (initR N) (initR N);
-    trans := fun p a => 
-      [set q | (fst q \in (transR N (fst p ) a)) && (fst q == snd q)];
-    accepts :=  setX (acceptsInf N) (acceptsFin N);
-|}.
-(*
-
-
-Record rabin Σ := {
-  baseR :> buchi Σ;
-  stateR : nonEmptyFintype;
-  axiomR : state baseR = nonEmpty_id_prod stateR;
-}.
-
-Arguments baseR {_}.
-Arguments stateR {_}.
-Arguments axiomR {_}.
-
-
-Definition acceptsR {Σ} (N : rabin Σ) : {set nonEmpty_id_prod (stateR N)}.
-Proof.
-   move : (accepts N) => s.
-  rewrite axiomR in s; auto.
-Defined.
-
-Definition acceptsFst {Σ} (N : rabin Σ) : {set stateR N} :=
-  [set l | [exists p, (p ∈ (acceptsR N)) && (fst p  == l)]].
-
-Definition acceptsSnd {Σ} (N : rabin Σ) : {set stateR N} :=
-  [set r | [exists p, (p ∈ (acceptsR N)) && (snd p  == r)]].
-
-Definition initR {Σ} (N : rabin Σ) : {SET nonEmpty_id_prod (stateR N)}.
-Proof.
-  move : (init N) => s.
-  rewrite axiomR in s; auto.
-Defined.
-
-Definition transR {Σ} (N : rabin Σ) : nonEmpty_id_prod (stateR N) -> Σ -> {set nonEmpty_id_prod (stateR N)}.
-Proof.
-  move : (trans N).
-  rewrite axiomR; auto.
-Defined.  
-
-(* 
-取り敢えず buchi automaton の受理条件を書いたけど、いい感じにrabinのものに書き換えたい。
-rabinの公理を使わないと状態が直積である事は主張できないから、最終状態の左右で分ける書き方がよくわからない。
-*)
-
-Search finset prod.
-Print imset.
-Print Imset.imset.
-Export Imset.
-Check imset.
-
-Variable Σ : nonEmptyFintype.
-Variable N : rabin Σ.
-Variable s : state N.
-Definition F := acceptsR N.
-Variable p : nonEmpty_id_prod (stateR N).
-Check (fst p).
-Check (stateR N).
-
-
-Definition langOf {Σ} (N : rabin Σ) (w : Stream Σ) : Prop :=
-  exists r, run w r /\ infinitely_often (fun s => hd s ∈ accepts N) r.
-
-Print langOf.
+        
+(* rabin automatonの受理条件が、パスが無限長である事を前提とした定義になってるから、やり直し *)
