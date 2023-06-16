@@ -15,16 +15,16 @@ Definition infinitely_often {T : Type} (P : Stream T -> Prop) s : Prop :=
   ForAll (fun s' => Exists (fun s'' => P s'') s') s.
 
 
-CoInductive prerun {Σ} (N : buchi Σ) : Stream Σ ->  Stream (state N) -> Prop :=
+CoInductive prerunB {Σ} (N : buchi Σ) : Stream Σ ->  Stream (state N) -> Prop :=
   | step w r :
-     hd (tl r) ∈ trans N (hd r) (hd w) -> prerun (tl w) (tl r) -> prerun  w r.
+     hd (tl r) ∈ trans N (hd r) (hd w) -> prerunB (tl w) (tl r) -> prerunB  w r.
 
 
-Inductive run {Σ} (N : buchi Σ) : Stream Σ -> Stream (state N) -> Prop :=
-  | run_intro w r : hd r ∈ init N -> prerun w r -> run  w r.
+Inductive runB {Σ} (N : buchi Σ) : Stream Σ -> Stream (state N) -> Prop :=
+  | run_intro w r : hd r ∈ init N -> prerunB w r -> runB  w r.
 
 Definition langOf {Σ} (N : buchi Σ) (w : Stream Σ) : Prop :=
-  exists r, run w r /\ infinitely_often (fun s => hd s ∈ accepts N) r.
+  exists r, runB w r /\ infinitely_often (fun s => hd s ∈ accepts N) r.
 
 
 
@@ -42,7 +42,7 @@ Definition is_inr {A B} (a : A + B) : Prop :=
   end.
 
 Lemma run_union_ForAll {Σ} (N1 N2 : buchi Σ) (w : Stream Σ) r :
-  run (N := union N1 N2) w r -> ForAll (fun s => is_inl (hd s)) r \/ ForAll (fun s => is_inr (hd s)) r.
+  runB (N := union N1 N2) w r -> ForAll (fun s => is_inl (hd s)) r \/ ForAll (fun s => is_inr (hd s)) r.
 Proof.
   move => H.
   remember (hd r) as s.
@@ -155,7 +155,7 @@ Proof.
 
     { (*left*)
       exists (sum_Stream_left Hall); split.
-      { (* run *)
+      { (* runB *)
         constructor.
         { (* init *)
           rewrite in_set in Hini.
@@ -163,7 +163,7 @@ Proof.
           simpl.
           destruct r, Hall, s, i; simpl in *; auto.           
         } 
-        { (* prerun *)
+        { (* prerunB *)
           clear Hi Hini.
           move : w r Hp Hall.
           cofix f => w r Hp Hall.
@@ -217,7 +217,7 @@ Proof.
     }
     { (*right*)
       exists (sum_Stream_right Hall); split.
-      { (* run *)
+      { (* runB *)
         constructor.
         { (* init *)
           rewrite in_set in Hini.
@@ -225,7 +225,7 @@ Proof.
           simpl.
           destruct r, Hall, s, i; simpl in *; auto.           
         } 
-        { (* prerun *)
+        { (* prerunB *)
           clear Hi Hini.
           move : w r Hp Hall.
           cofix f => w r Hp Hall.
