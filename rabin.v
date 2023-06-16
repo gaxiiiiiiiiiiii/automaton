@@ -1,7 +1,7 @@
 From mathcomp Require Import fintype eqtype ssreflect ssrbool choice.
 
 Require Import NonEmptyFintype.
-Require Import NFA.
+Require Import NFA buchi.
 
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -11,116 +11,123 @@ Notation bin := bool.
 Notation L := true.
 Notation R := false.
 
-(* 教科書ではT := {1,0}^* としてるけど、ツリーのノードでは有限だから一応nilも含めている *)
-(* CoInductive node := 
+CoInductive node := 
   | nil : node
-  | cons : bin -> node -> node. *)
-Notation node := (list bin).
+  | cons : bin -> node -> node.
+
+Definition unfold_node (u : node) : node :=
+  match u with
+  | nil => nil
+  | cons b u' => cons b u'
+  end.
+
+Lemma unfold_node_eq u : u = unfold_node u.
+Proof. destruct u; auto. Qed.
+
+
 Notation λ := nil.
-(* Infix "::" := cons (at level 60, right associativity). *)
+Infix "::" := cons (at level 60, right associativity).
 Definition sucL (u : node)  := cons L u.
 Definition sucR (u : node)  := cons R u.
 
-(* 必要かわかんないけど、一応 *)
-(* Definition is_fin (u : node) : Prop := 
-  match u with
-  | nil => True
-  | cons _ u' => False
-  end.
-Definition is_inf (u : node) : Prop := ~ is_fin u.
-Definition inf_node := {u : node | is_inf u}.
-Definition fin_node := {u : node | is_fin u}. *)
-
-
-
-
-(* CoFixpoint app (u v : node) : node :=
-  match u with
-  | nil => v
-  | cons b u' => cons b (app u' v)
-  end. *)
-
-Inductive above : node -> node -> Prop :=
-  | above_refl u : above u u
-  | above_cons b u v : above u v -> above u (cons b v).
-
-(* Ensemble で良いのかは疑問が残る *)
-Definition aboveOf (x : node) : Ensemble node := fun y => above x y.
-
-
-(* おそらく無限の二分木だからCoInductiveだけど、ちょと自信がない。 *)
 CoInductive tree : node -> Type :=
   | tree_intro u :  tree (cons L u) -> tree (cons R u) -> tree u.
 
-Fixpoint subs (u : node) : Ensemble node := fun v => 
+
+CoFixpoint app (u v : node) : node :=
   match u with
-  | nil => u = v
-  | cons a u' => v = u \/ subs u' v
+  | nil => v
+  | cons b u' => cons b (app u' v)
   end.
 
+(* 
+  node がCoInductiveで帰納法が使えないから、aboveもCoInductiveの方が良さそう
+*)
+CoInductive above : node -> node -> Prop :=
+  | above_refl u : above u u
+  | above_cons b u v : above u v -> above u (cons b v).
+
+Definition aboveOf (x : node) : Ensemble node := 
+  fun y => above x y.
+
+Definition belowOf (u : node) : Ensemble node := 
+  fun v => above v u.
 
 Definition path pi : Prop :=
-  exists u, pi = subs u.
+  exists u, pi = belowOf u.
+
+Lemma belowOf_above u v :
+  In (belowOf u) v -> above v u.
+Proof. auto. Qed.  
 
 
-(* おそらく無限の二分木だからCoInductiveだけど、ちょと自信がない。 *)
-
-(* Definition path (pi : Ensemble node) : Prop := *)
-  (* In _ pi λ /\ (forall u, In _ pi u -> In _ pi (sucL u) \/ In _ pi (sucR u)). *)
-
-Lemma subs_above u v :
-  In (subs u) v -> above v u.
+Lemma above_nil u : 
+  above λ u.
 Proof.
-  move : v.
-  induction u; rewrite /In => /= v H.
-  - subst.
+  move : u.
+  cofix f.
+  destruct u.
+  - constructor.
+  - constructor 2.
+    apply f.
+Qed.
+
+Lemma above_trans u v w : 
+  above u v -> above v w -> above u w.
+Proof.
+  move : u v w; cofix f => u v w.
+  destruct w => H1 H2.
+  - inversion H2; subst.
+    inversion H1; subst.
     constructor.
-  - case : H => H.
-    * subst.
-      constructor.
-    * constructor 2; auto.
-Qed.    
-
-
-Lemma above_nil u : above λ u.
-Proof.
-  induction u.
-  - by apply above_refl.
-  - by apply above_cons.
-Qed.
-
-Lemma above_trans u v w : above u v -> above v w -> above u w.
-Proof.
-  move => Huv Hvw.
-  move : u Huv.
-  induction Hvw => u0 H //=.
-  constructor 2.
-  apply IHHvw; auto.
+  - inversion H2; subst; auto.
+    constructor 2.
+    eapply f; eauto. 
 Qed.
 
 
-Lemma path_total :
-  forall pi x y, path pi -> In pi x -> In pi y -> above x y \/ above y x.
-Proof.  
-  move => pi x y [u] ->.
-  move : x y.
-  induction u => x y Hx Hy.
-  - simpl in *.
-    unfold In in *; subst.
-    left; constructor.
-  - unfold In in *.
-    simpl in *.
-    case : Hx => Hx;
-    case : Hy => Hy; subst.
-    * left; constructor.
-    * right.
-      constructor.      
-      apply subs_above; auto.
-    * left.
-      constructor.
-      apply subs_above; auto.
-    * apply IHu; auto.
-Qed.   
+
+CoFixpoint cycleL : node := cons L cycleR
+with cycleR : node := cons R cycleL.
+
+Lemma both_above : above cycleL cycleR /\ above cycleR cycleL.
+Proof.
+  split;  
+  erewrite unfold_node_eq;
+  repeat constructor.
+Qed.
+
+
+Lemma above_antisym u v : 
+  above u v -> above v u -> u = v.
+
+  
+
+
+
+
+Lemma above_total x y u: 
+  above x u -> above y u -> above x y \/ above y x.
+Proof.
+  move => Hx Hy.
+  destruct x as [| a x].
+  - left; apply above_nil.
+  - destruct y as [|b y].
+    * right; apply above_nil.
+    * 
+
+
+Lemma path_total pi x y:
+  path pi -> In pi x -> In pi y -> above x y \/ above y x.
+Proof.
+  move => [u] ->.
+  unfold belowOf, In => Hx Hy.
+  inversion Hx; subst.
+  - right; auto.
+  - inversion Hy; subst.
+    * left; auto.
+    *  
+  
 
 Definition lang (Σ : nonEmptyFintype) : Type:= (node -> Σ) * node .
 
