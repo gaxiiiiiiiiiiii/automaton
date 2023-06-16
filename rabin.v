@@ -40,12 +40,17 @@ CoFixpoint app (u v : node) : node :=
   | cons b u' => cons b (app u' v)
   end.
 
-(* 
-  node がCoInductiveで帰納法が使えないから、aboveもCoInductiveの方が良さそう
-*)
-CoInductive above : node -> node -> Prop :=
-  | above_refl u : above u u
-  | above_cons b u v : above u v -> above u (cons b v).
+
+Inductive above : node -> node -> Prop :=
+  | above_nil u : above λ u
+  | above_cons a u v : above u v -> above (cons a u) (cons a v).
+
+Inductive above' : node -> node -> Prop :=
+  | above'_refl u : above' u u
+  | above'_cons a u v : above' u v -> above' u (cons a v). 
+
+
+
 
 Definition aboveOf (x : node) : Ensemble node := 
   fun y => above x y.
@@ -61,60 +66,40 @@ Lemma belowOf_above u v :
 Proof. auto. Qed.  
 
 
-Lemma above_nil u : 
-  above λ u.
-Proof.
-  move : u.
-  cofix f.
-  destruct u.
-  - constructor.
-  - constructor 2.
-    apply f.
-Qed.
-
 Lemma above_trans u v w : 
   above u v -> above v w -> above u w.
 Proof.
-  move : u v w; cofix f => u v w.
-  destruct w => H1 H2.
-  - inversion H2; subst.
-    inversion H1; subst.
+  move => H.
+  move : w.
+  induction H => w H'.
+  - constructor.
+  - inversion H'; subst; clear H'.
     constructor.
-  - inversion H2; subst; auto.
-    constructor 2.
-    eapply f; eauto. 
+    eapply IHabove; auto.  
 Qed.
-
-
-
-CoFixpoint cycleL : node := cons L cycleR
-with cycleR : node := cons R cycleL.
-
-Lemma both_above : above cycleL cycleR /\ above cycleR cycleL.
-Proof.
-  split;  
-  erewrite unfold_node_eq;
-  repeat constructor.
-Qed.
-
 
 Lemma above_antisym u v : 
   above u v -> above v u -> u = v.
+Proof.  
+  induction 1 => H0.
+  - inversion H0; subst; auto.
+  - congr cons; auto.
+    inversion H0; subst.
+    eauto.
+Qed.    
 
   
-
-
-
-
 Lemma above_total x y u: 
   above x u -> above y u -> above x y \/ above y x.
 Proof.
-  move => Hx Hy.
-  destruct x as [| a x].
-  - left; apply above_nil.
-  - destruct y as [|b y].
-    * right; apply above_nil.
-    * 
+  move => H.
+  move : y.
+  induction H => y H0.
+  - left; constructor.
+  - inversion H0; subst; clear H0.
+    * right; constructor.
+    * case : (IHabove _ H3) => In; clear IHabove; [left|right]; constructor; auto.
+Qed.    
 
 
 Lemma path_total pi x y:
@@ -122,11 +107,8 @@ Lemma path_total pi x y:
 Proof.
   move => [u] ->.
   unfold belowOf, In => Hx Hy.
-  inversion Hx; subst.
-  - right; auto.
-  - inversion Hy; subst.
-    * left; auto.
-    *  
+  eapply above_total; eauto.
+Qed.
   
 
 Definition lang (Σ : nonEmptyFintype) : Type:= (node -> Σ) * node .
@@ -139,7 +121,6 @@ Record rabin (Σ : nonEmptyFintype) := {
   accepts : {set stateR};
 }.
 
-(* Set Implicit Arguments of rabin fields *)
 Arguments stateR {Σ}.
 Arguments initR {Σ}.
 Arguments transR {Σ}.
